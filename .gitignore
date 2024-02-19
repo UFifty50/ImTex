@@ -434,7 +434,5 @@ FodyWeavers.xsd
 
 Makefile
 
-*.tar
-*.tar.*
-*.vcxproj*
-*.sln*
+**/*.vcxproj*
+**/*.sln*

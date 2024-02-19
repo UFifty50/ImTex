@@ -107,14 +107,16 @@ project "MicroTeX"
         "%{prj.name}/src/res/sym/symspecial.def.cpp",
         "%{prj.name}/src/latex.cpp",
         "%{prj.name}/src/render.cpp",
+        "tinyxml2/tinyxml2.cpp"
     }
 
     includedirs {
-        "%{prj.name}/src"
+        "%{prj.name}/src",
+        "tinyxml2/"
     }
 
     links {
-        "tinyxml2"
+    --    "tinyxml2"
     }
 
     filter "system:windows"
@@ -144,47 +146,3 @@ project "MicroTeX"
         }
 
 
-project "ImTex"
-    location "ImTex"
-    kind "ConsoleApp"
-    staticruntime "off"
-    language "C++"
-    cppdialect "C++20"
-
-    targetdir ("bin/" .. outputDir .. "/%{prj.name}")
-    objdir ("bin/intermediate" .. outputDir .. "/%{prj.name}")
-
-    files {
-        "src/main.cpp"
-    }
-
-    includedirs {
-        "src"
-    }
-
-    links {
-        "MicroTeX",
-        "tinyxml2"
-    }
-
-    filter "system:windows"
-        systemversion "latest"
-
-        defines {
-            "BUILD_WIN32",
-            "_HAS_STD_BYTE=0"
-        }
-
-    filter "system:linux"
-        pic "On"
-        systemversion "latest"
-
-        defines {
-            "BUILD_GTK"
-        }
-
-    filter "toolset:msc*"
-        buildoptions { 
-            "/utf-8",
-            "/Zc:preprocessor"
-        }
