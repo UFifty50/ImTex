@@ -1,0 +1,3 @@
+[submodule "MicroTeX"]
+	path = MicroTeX
+	url = https://github.com/NanoMichael/MicroTeX.git
