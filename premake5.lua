@@ -2,14 +2,15 @@ workspace "ImTex"
     architecture "x86_64"
     configurations { "Debug", "Release" }
     flags { "MultiProcessorCompile" }
+    startproject "ImTeX"
 
     filter "configurations:Debug"
-        defines { "IMTEX_DEBUG" }
+        defines { "IMTEX_DEBUG", "DEBUG" }
         symbols "On"
         optimize "Off"
 
     filter "configurations:Release"
-        defines { "IMTEX_RELEASE" }
+        defines { "IMTEX_RELEASE", "NDEBUG" }
         symbols "Off"
         optimize "On"
 
@@ -124,16 +125,13 @@ project "MicroTeX"
 
         defines {
             "BUILD_WIN32",
-            "_HAS_STD_BYTE=0"
+            "_HAS_STD_BYTE=0",
+            "_CRT_SECURE_NO_WARNINGS"
         }
 
     filter "system:linux"
         pic "On"
         systemversion "latest"
-
-        files {
-            "%{prj.name}/src/platform/cairo/graphic_cairo.cpp",
-        }
 
         defines {
             "BUILD_GTK"
@@ -146,3 +144,47 @@ project "MicroTeX"
         }
 
 
+project "ImTex"
+    location "ImTex"
+    kind "StaticLib"
+    staticruntime "off"
+    language "C++"
+    cppdialect "C++20"
+
+    targetdir ("bin/" .. outputDir .. "/%{prj.name}")
+    objdir ("bin/intermediate/" .. outputDir .. "/%{prj.name}")
+
+    files {
+        "%{prj.name}/src/cpp/MicroTeX_ImTeXGraphics2DImpl.cpp",
+        "%{prj.name}/src/include/MicroTeX_ImTeXFontImpl.hpp",
+        "%{prj.name}/src/include/MicroTeX_ImTeXTextLayoutImpl.hpp",
+        "%{prj.name}/src/include/MicroTeX_ImTeXGraphics2DImpl.hpp",
+        "%{prj.name}/src/include/ImTeX.hpp",
+        "%{prj.name}/src/include/Globals.hpp"
+    }
+
+    includedirs {
+        "%{prj.name}/src/include",
+        "MicroTeX/src",
+        "nanovg/"
+    }
+
+    links {
+        "MicroTeX",
+     --   "tinyxml2"
+    }
+
+    filter "system:windows"
+        systemversion "latest"
+
+        defines { "_CRT_SECURE_NO_WARNINGS" }
+
+    filter "system:linux"
+        pic "On"
+        systemversion "latest"
+
+    filter "toolset:msc*"
+        buildoptions { 
+            "/utf-8",
+            "/Zc:preprocessor"
+        }
