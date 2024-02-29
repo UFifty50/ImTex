@@ -86,6 +86,9 @@ namespace ImTeX {
         static Image RenderCodeToImage_local(const std::wstring& code, float x, float y,
                                              const Config& localConfig);
 
+        // RenderCodeToFrambuffer
+        // RenderCodeToFrambuffer_local
+
 
         // helpers
         static tex::color toMicroTeXColour(const Colour& c) {

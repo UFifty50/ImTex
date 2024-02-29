@@ -1,5 +1,6 @@
 #include "ImTeX.hpp"
 
+#include <fstream>
 #include <iostream>
 
 #include "latex.h"
@@ -156,9 +157,9 @@ namespace ImTeX {
 int main() {
     ImTeX::Config config{
         //    .customFont = "Serif",
-        .imageWidth = 720,
-        .imageHeight = 300,
-        .fontSize = 40,
+        .imageWidth = 1920,
+        .imageHeight = 1080,
+        .fontSize = 50,
         .lineHeight = 10,
         .foreground = {0.83f, 0.95f, 0.6f, 1.0f},
         .background = {0.93f, 0.95f, 0.93f, 1.0f},
@@ -182,7 +183,11 @@ int main() {
     }
 
 
-    std::wstring code = L"\\int_{now}^{+\\infty} \\text{Keep trying}+\\sqrt{72}";
+    // std::wstring code =
+    // L"\\int_{now}^{+\\infty} \\text{Keep trying}+\\sqrt{72}\\\\\\AndroidTeX";
+    std::wifstream file("test.tex");
+    std::wstring code((std::istreambuf_iterator<wchar_t>(file)),
+                      std::istreambuf_iterator<wchar_t>());
 
     ImTeX::Image img = ImTeX::Runtime::RenderCodeToImage(code, 10, 10);
 

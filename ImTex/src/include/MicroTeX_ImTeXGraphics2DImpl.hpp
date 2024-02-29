@@ -117,17 +117,20 @@ namespace ImTeX {
 
 
         virtual void drawLine(float x1, float y1, float x2, float y2) override {
-            nvgMoveTo(runtimeData.nvgCtx, x1, y1);
-            nvgLineTo(runtimeData.nvgCtx, x2, y2);
+            nvgMoveTo(runtimeData.nvgCtx, x1 * m_scale.x, y1 * m_scale.y);
+            nvgLineTo(runtimeData.nvgCtx, x2 * m_scale.x, y2 * m_scale.y);
         }
 
         virtual void drawRect(float x, float y, float w, float h) override {
-            nvgRect(runtimeData.nvgCtx, x, y, w, h);
+            nvgRect(runtimeData.nvgCtx, x * m_scale.x, y * m_scale.y, w * m_scale.x,
+                    h * m_scale.y);
         }
 
         virtual void drawRoundRect(float x, float y, float w, float h, float rx,
                                    float ry) override {
-            nvgRoundedRectVarying(runtimeData.nvgCtx, x, y, w, h, rx, -rx, ry, -ry);  // TODO
+            nvgRoundedRectVarying(runtimeData.nvgCtx, x * m_scale.x, y * m_scale.y,
+                                  w * m_scale.x, h * m_scale.y, rx, -rx, ry,
+                                  -ry);  // TODO
         }
 
         virtual void fillRect(float x, float y, float w, float h) override {
