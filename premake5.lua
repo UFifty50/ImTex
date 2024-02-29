@@ -3,20 +3,26 @@ workspace "ImTex"
     configurations { "Debug", "Release" }
     flags { "MultiProcessorCompile" }
     startproject "ImTeX"
+    debugdir "bin/%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}/ImTex"
 
     filter "configurations:Debug"
-        defines { "IMTEX_DEBUG", "DEBUG" }
+        defines { "IMTEX_DEBUG", "_DEBUG" }
         symbols "On"
         optimize "Off"
 
     filter "configurations:Release"
         defines { "IMTEX_RELEASE", "NDEBUG" }
+        runtime "Release"
         symbols "Off"
         optimize "On"
 
 
 outputDir = "%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}"
 
+
+group "Dependencies"
+    include "vendor/Glad"
+    include "vendor/GLFW"
 
 group ""
 project "MicroTeX"
@@ -108,12 +114,12 @@ project "MicroTeX"
         "%{prj.name}/src/res/sym/symspecial.def.cpp",
         "%{prj.name}/src/latex.cpp",
         "%{prj.name}/src/render.cpp",
-        "tinyxml2/tinyxml2.cpp"
+        "%{wks.location}/vendor/tinyxml2/tinyxml2.cpp"
     }
 
     includedirs {
         "%{prj.name}/src",
-        "tinyxml2/"
+        "%{wks.location}/vendor/tinyxml2/"
     }
 
     links {
@@ -146,7 +152,7 @@ project "MicroTeX"
 
 project "ImTex"
     location "ImTex"
-    kind "StaticLib"
+    kind "ConsoleApp"
     staticruntime "off"
     language "C++"
     cppdialect "C++20"
@@ -155,23 +161,29 @@ project "ImTex"
     objdir ("bin/intermediate/" .. outputDir .. "/%{prj.name}")
 
     files {
-        "%{prj.name}/src/cpp/MicroTeX_ImTeXGraphics2DImpl.cpp",
-        "%{prj.name}/src/include/MicroTeX_ImTeXFontImpl.hpp",
-        "%{prj.name}/src/include/MicroTeX_ImTeXTextLayoutImpl.hpp",
-        "%{prj.name}/src/include/MicroTeX_ImTeXGraphics2DImpl.hpp",
-        "%{prj.name}/src/include/ImTeX.hpp",
-        "%{prj.name}/src/include/Globals.hpp"
+        "%{prj.name}/src/cpp/**.cpp",
+        "%{prj.name}/src/include/**.hpp",
+        "%{wks.location}/vendor/nanovg/**.c",
+        "%{wks.location}/vendor/nanovg/**.h"
     }
 
     includedirs {
         "%{prj.name}/src/include",
-        "MicroTeX/src",
-        "nanovg/"
+        "%{wks.location}/MicroTeX/src",
+        "%{wks.location}/vendor/Glad/include",
+        "%{wks.location}/vendor/GLFW/include",
+        "%{wks.location}/vendor/nanovg/"
     }
 
     links {
         "MicroTeX",
+        "Glad",
+        "GLFW",
      --   "tinyxml2"
+    }
+
+    postbuildcommands {
+            "{COPYDIR} ../MicroTeX/res/ ../bin/" .. outputDir .. "/ImTeX/res"
     }
 
     filter "system:windows"
@@ -179,9 +191,23 @@ project "ImTex"
 
         defines { "_CRT_SECURE_NO_WARNINGS" }
 
+        links {
+            "opengl32.lib",
+        }
+
     filter "system:linux"
         pic "On"
         systemversion "latest"
+
+        links {
+            "X11",
+            "Xrandr",
+            "Xi",
+            "GLU",
+            "GL",
+            "dl",
+            "pthread",
+        }
 
     filter "toolset:msc*"
         buildoptions { 

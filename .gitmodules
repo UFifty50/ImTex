@@ -1,3 +1,6 @@
 [submodule "MicroTeX"]
 	path = MicroTeX
 	url = https://github.com/NanoMichael/MicroTeX.git
+[submodule "vendor/GLFW"]
+	path = vendor/GLFW
+	url = https://github.com/UFifty50/glfw-premake
