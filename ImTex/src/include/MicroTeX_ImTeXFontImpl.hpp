@@ -6,7 +6,7 @@
 
 #include "graphic/graphic.h"
 
-#include "Globals.hpp"
+#include "ImTeX.hpp"
 #include "Utils.hpp"
 
 
@@ -15,46 +15,43 @@ namespace fs = std::filesystem;
 
 
 namespace ImTeX {
-    static float FontSize = 40;
-
     class MicroTeX_ImTeXFontImpl : public MicroTeX::Font {
     public:
-        MicroTeX_ImTeXFontImpl(const std::string& name, int style, float size)
-            : m_name(name), m_style(style), m_size(size) {
-            m_fontIdx = nvgFindFont(g_nvgCtx, name.c_str());
+        MicroTeX_ImTeXFontImpl(const std::string& name, int style, float pointsPerPixel)
+            : m_name(name), m_style(style) {
+            m_fontIdx = nvgFindFont(runtimeData.nvgCtx, name.c_str());
 
             if (m_fontIdx == -1) {
                 std::cout << "Could not find font: " << name << std::endl;
             }
 
-            m_size = 40;
+            m_size = runtimeData.getFontSize() * pointsPerPixel;
         }
 
         MicroTeX_ImTeXFontImpl(const std::string& file, float pointsPerPixel)
             : m_name(fileName(file)), m_style(MicroTeX::PLAIN) {
-            m_fontIdx = nvgFindFont(g_nvgCtx, file.c_str());
+            m_fontIdx = nvgFindFont(runtimeData.nvgCtx, file.c_str());
 
             if (m_fontIdx != -1) return;
 
-            m_fontIdx = nvgCreateFont(g_nvgCtx, file.c_str(), file.c_str());
+            m_fontIdx = nvgCreateFont(runtimeData.nvgCtx, file.c_str(), file.c_str());
 
             if (m_fontIdx == -1) {
                 throw std::runtime_error("Failed to load font: " + file);
             }
 
-            m_size = 40;
+            m_size = runtimeData.getFontSize() * pointsPerPixel;
         }
 
         MicroTeX_ImTeXFontImpl(const std::string& name, unsigned char* data, int dataSize,
                                int style, float size)
             : m_style(style), m_size(size) {
-            m_fontIdx = nvgFindFont(g_nvgCtx, name.c_str());
+            m_fontIdx = nvgFindFont(runtimeData.nvgCtx, name.c_str());
 
             if (m_fontIdx == -1) {
-                m_fontIdx = nvgCreateFontMem(g_nvgCtx, name.c_str(), data, dataSize, 0);
+                m_fontIdx =
+                    nvgCreateFontMem(runtimeData.nvgCtx, name.c_str(), data, dataSize, 0);
             }
-
-            m_size = 40;
         }
 
         virtual ~MicroTeX_ImTeXFontImpl() override = default;

@@ -5,57 +5,24 @@
 #include "latex.h"
 
 #include "Calibri.ttf.hpp"
-#include "Globals.hpp"
+#include "ImTeX.hpp"
 #include "MicroTeX_ImTeXFontImpl.hpp"
 #include "MicroTeX_ImTeXGraphics2DImpl.hpp"
 #include "MicroTeX_ImTeXTextLayoutImpl.hpp"
 
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
 
-NVGcontext* g_nvgCtx;
-ImTeXFramebuffer* g_nvgFbo;
 
 namespace ImTeX {
-
-    union Colour {
-        struct {
-            float r;
-            float g;
-            float b;
-            float a;
-        };
-        float rgba[4];
-    };
-
-
-    struct Config {
-        //    std::string customFont;
-        float fontSize;
-        float lineHeight;
-        Colour colour;
-    };
-
-    static Config GlobalConfig;
-
-    enum class ERRCODE {
-        OK = 0,
-
-        // GLFW errors
-        GLFW_INIT,
-        GLFW_CREATE_CONTEXT,
-
-        // NVG errors
-        NVG_CREATE_CONTEXT,
-        NVG_CREATE_FRAMEBUFFER,
-    };
-
-    static ERRCODE Init() {
+    ERRCODE Runtime::Init(const Config& conf) {
         if (!glfwInit()) {
             return ERRCODE::GLFW_INIT;
         }
 
 #ifndef _WIN32  // don't require this on win32, and works with more cards
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 #endif
@@ -63,100 +30,141 @@ namespace ImTeX {
 #ifdef MSAA
         glfwWindowHint(GLFW_SAMPLES, 4);
 #endif
-        glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
+        glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);  // TODO: make it offscreen
 
-        GLFWwindow* offscreenCTX = glfwCreateWindow(640, 480, "", NULL, NULL);
-        if (!offscreenCTX) {
+        runtimeData.window =
+            glfwCreateWindow(conf.imageWidth, conf.imageHeight, "", NULL, NULL);
+        if (!runtimeData.window) {
             glfwTerminate();
             return ERRCODE::GLFW_CREATE_CONTEXT;
         }
 
-        glfwMakeContextCurrent(offscreenCTX);
+        glfwMakeContextCurrent(runtimeData.window);
 
         if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
             return ERRCODE::GLFW_CREATE_CONTEXT;
         }
 
 #ifdef MSAA
-        g_nvgCtx = nvgCreateGL3(NVG_STENCIL_STROKES | NVG_DEBUG);
+        runtimeData.nvgCtx = nvgCreateGL3(NVG_STENCIL_STROKES | NVG_DEBUG);
 #else
-        g_nvgCtx = nvgCreateGL3(NVG_ANTIALIAS | NVG_STENCIL_STROKES | NVG_DEBUG);
+        runtimeData.nvgCtx = nvgCreateGL3(NVG_ANTIALIAS | NVG_STENCIL_STROKES | NVG_DEBUG);
 #endif
 
-        if (g_nvgCtx == nullptr) {
+        if (runtimeData.nvgCtx == nullptr) {
             return ERRCODE::NVG_CREATE_CONTEXT;
         }
 
+        int winWidth, winHeight;
+        int fbWidth, fbHeight;
+        glfwGetWindowSize(runtimeData.window, &winWidth, &winHeight);
+        glfwGetFramebufferSize(runtimeData.window, &fbWidth, &fbHeight);
+
+        runtimeData.nvgFBO.pixelRatio = (float)fbWidth / winWidth;
+
+        float scaledWidth = winWidth * runtimeData.nvgFBO.pixelRatio;
+        float scaledHeight = winHeight * runtimeData.nvgFBO.pixelRatio;
+
+        runtimeData.nvgFBO.FBO =
+            nvgluCreateFramebuffer(runtimeData.nvgCtx, scaledWidth, scaledHeight, 0);
+        runtimeData.nvgFBO.width = scaledWidth;
+        runtimeData.nvgFBO.height = scaledHeight;
+
+        if (runtimeData.nvgFBO.FBO == nullptr) {
+            return ERRCODE::NVG_CREATE_FRAMEBUFFER;
+        }
+
         // Load default Serif and SansSerif fonts
-        nvgCreateFontMem(g_nvgCtx, "Serif", calibri_ttf, calibri_ttf_len, 0);
-        nvgCreateFontMem(g_nvgCtx, "SansSerif", calibri_ttf, calibri_ttf_len, 0);
+        nvgCreateFontMem(runtimeData.nvgCtx, "Serif", calibri_ttf, calibri_ttf_len, 0);
+        nvgCreateFontMem(runtimeData.nvgCtx, "SansSerif", calibri_ttf, calibri_ttf_len, 0);
 
-        int ctxWidth, ctxHeight;
-        glfwGetWindowSize(offscreenCTX, &ctxWidth, &ctxHeight);
+        glfwSwapInterval(0);  // TODO: is this needed?
 
-        float pxRatio = 640.0f / (float)ctxWidth;
-
-        g_nvgFbo = new ImTeXFramebuffer();
-        //    g_nvgFbo->fbo = nvgluCreateFramebuffer(g_nvgCtx, 100 * pxRatio, 100 * pxRatio,
-        //    0);
-        g_nvgFbo->width = 640.0f;
-        g_nvgFbo->height = 480.0f;
-        g_nvgFbo->pxRatio = pxRatio;
-
-        //    if (g_nvgFbo == nullptr) {
-        //         return ERRCODE::NVG_CREATE_FRAMEBUFFER;
-        //     }
-
+        runtimeData.config = conf;
 
         tex::LaTeX::init();
 
         return ERRCODE::OK;
     }
 
-    static void Shutdown() {
+
+    void Runtime::Shutdown() {
         tex::LaTeX::release();
 
-        //     nvgluDeleteFramebuffer(g_nvgFbo->fbo);
-        nvgDeleteGL3(g_nvgCtx);
-        delete g_nvgFbo;
+        nvgluDeleteFramebuffer(runtimeData.nvgFBO.FBO);
+        nvgDeleteGL3(runtimeData.nvgCtx);
         glfwTerminate();
     }
 
 
-    void SetupGlobalConfig(Config config) { GlobalConfig = config; }
+    ERRCODE Runtime::ResetConfig(const Config& config) {
+        runtimeData.config = config;
 
-    tex::color toMicroTeXColour(Colour c) { return tex::argb(c.a, c.r, c.g, c.b); }
+        glfwSetWindowSize(runtimeData.window, config.imageWidth, config.imageHeight);
 
-    void RenderCode(const std::wstring& code, float width, float x, float y) {
-        //   Convert the code to a paintable object (TeXRender)
-        auto r =
-            tex::LaTeX::parse(code,   // LaTeX code to parse
-                              width,  // logical width of the graphics context (in pixel)
-                              GlobalConfig.fontSize,    // font size (in point)
-                              GlobalConfig.lineHeight,  // space between 2 lines (in pixel)
-                              toMicroTeXColour(GlobalConfig.colour)  // foreground color
-            );
+        float scaledWidth = config.imageWidth * runtimeData.nvgFBO.pixelRatio;
+        float scaledHeight = config.imageHeight * runtimeData.nvgFBO.pixelRatio;
+        runtimeData.nvgFBO.FBO =
+            nvgluCreateFramebuffer(runtimeData.nvgCtx, scaledWidth, scaledHeight, 0);
+
+        if (runtimeData.nvgFBO.FBO == nullptr) {
+            return ERRCODE::NVG_CREATE_FRAMEBUFFER;
+        }
+
+        return ERRCODE::OK;
+    }
+
+
+    Image Runtime::RenderCodeToImage(const std::wstring& code, float x, float y) {
+        return RenderCodeToImage_local(code, x, y, runtimeData.config);
+    }
+
+
+    Image Runtime::RenderCodeToImage_local(const std::wstring& code, float x, float y,
+                                           const Config& localConfig) {
+        auto r = tex::LaTeX::parse(
+            code, localConfig.imageWidth, localConfig.fontSize, localConfig.lineHeight,
+            toMicroTeXColour(localConfig.foreground)  // doesnt work for now
+        );
+
+        Colour bg = localConfig.background;
+        RuntimeData::FrameBuffer fb = runtimeData.nvgFBO;
+
+        nvgluBindFramebuffer(fb.FBO);
+        glViewport(0, 0, (GLsizei)fb.width, (GLsizei)fb.height);
+        glClearColor(bg.r, bg.g, bg.b, bg.a);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
         MicroTeX_ImTeXGraphics2DImpl g2;
 
-        g2.begin();
+
+        nvgBeginFrame(runtimeData.nvgCtx, fb.width, fb.height, fb.pixelRatio);
+        nvgBeginPath(runtimeData.nvgCtx);
+
         r->draw(g2, x, y);
-        g2.end();
+
+        nvgEndFrame(runtimeData.nvgCtx);
+        nvgluBindFramebuffer(nullptr);
 
         delete r;
-    }
 
-    void RenderCode_local(const std::wstring& code, float width, float x, float y,
-                          Config localConfig) {
-        Config oldConfig = GlobalConfig;
-        SetupGlobalConfig(localConfig);
-        RenderCode(code, width, x, y);
-        SetupGlobalConfig(oldConfig);
+        return g2.getImage();
     }
 };  // namespace ImTeX
 
+
 int main() {
-    switch (ImTeX::Init()) {
+    ImTeX::Config config{
+        //    .customFont = "Serif",
+        .imageWidth = 720,
+        .imageHeight = 300,
+        .fontSize = 40,
+        .lineHeight = 10,
+        .foreground = {0.83f, 0.95f, 0.6f, 1.0f},
+        .background = {0.93f, 0.95f, 0.93f, 1.0f},
+    };
+
+    switch (ImTeX::Runtime::Init(config)) {
         case ImTeX::ERRCODE::GLFW_INIT:
             std::cerr << "Failed to initialize GLFW" << std::endl;
             return 1;
@@ -174,41 +182,14 @@ int main() {
     }
 
 
-    ImTeX::Config config{
-        //    .customFont = "Serif",
-        .fontSize = 40,
-        .lineHeight = 10,
-        .colour = {0.83f, 0.95f, 0.6f, 1.0f},
-    };
-    ImTeX::SetupGlobalConfig(config);
+    std::wstring code = L"\\int_{now}^{+\\infty} \\text{Keep trying}+\\sqrt{72}";
 
-    std::wstring code = L"\\int_{now}^{+\\infty} \\text{Keep trying}";
+    ImTeX::Image img = ImTeX::Runtime::RenderCodeToImage(code, 10, 10);
 
-    // ImTeX::Image img = ImTeX::GetRenderedImage();
+    stbi_flip_vertically_on_write(true);
+    stbi_write_png("output.png", img.width, img.height, 4, img.data.data(), img.width * 4);
 
-    while (!glfwWindowShouldClose(glfwGetCurrentContext())) {
-        glViewport(0, 0, (GLsizei)g_nvgFbo->width, (GLsizei)g_nvgFbo->height);
-        glClearColor(0.93f, 0.95f, 0.93f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-
-
-        ImTeX::RenderCode(code, 640, 10, 10);
-
-        ImTeX::Config localConfig{
-            .fontSize = 20,
-            .lineHeight = 10,
-            .colour = {0.83f, 0.95f, 0.6f, 1.0f},
-        };
-        ImTeX::RenderCode_local(code, 640, 10, 10, localConfig);
-
-
-        glfwSwapBuffers(glfwGetCurrentContext());
-        glfwPollEvents();
-    }
-
-    // std::vector<uint8_t> imageData = g2.getImage();
-    // std::cout << "Image data: " << imageData.data() << std::endl;
-    ImTeX::Shutdown();
+    ImTeX::Runtime::Shutdown();
 
     return 0;
 }

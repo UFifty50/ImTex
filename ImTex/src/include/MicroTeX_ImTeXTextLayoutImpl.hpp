@@ -5,9 +5,6 @@
 
 #include "graphic/graphic.h"
 
-#include "Globals.hpp"
-
-
 namespace MicroTeX = tex;
 
 
